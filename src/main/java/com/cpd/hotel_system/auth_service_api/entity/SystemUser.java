@@ -47,7 +47,7 @@ public class SystemUser {
     @Column(name="updated_at")
     private Instant updatedAt;
 
-    @OneToOne(mappedBy = "systemUser")
+    @OneToOne(mappedBy = "systemUser", cascade = CascadeType.ALL)
     private Otp otp;
 
 }
