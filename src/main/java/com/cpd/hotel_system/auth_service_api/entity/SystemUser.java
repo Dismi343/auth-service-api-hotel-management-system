@@ -1,10 +1,7 @@
 package com.cpd.hotel_system.auth_service_api.entity;
 
 import jakarta.annotation.security.DenyAll;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -51,5 +48,8 @@ public class SystemUser {
     private Instant createdAt;
     @Column(name="updated_at")
     private Instant updatedAt;
+
+    @OneToOne(mappedBy = "systemUser")
+    private Otp otp;
 
 }
