@@ -34,4 +34,4 @@ build/
 
 
 # Environment / credentials
-
+.env

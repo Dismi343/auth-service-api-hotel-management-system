@@ -122,6 +122,11 @@
 			<artifactId>keycloak-spring-boot-starter</artifactId>
 			<version>24.0.1</version>
 		</dependency>
+		<dependency>
+			<groupId>io.github.cdimascio</groupId>
+			<artifactId>dotenv-java</artifactId>
+			<version>3.0.0</version>
+		</dependency>
 	</dependencies>
 
 	<build>
