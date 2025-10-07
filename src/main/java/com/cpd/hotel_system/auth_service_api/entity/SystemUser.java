@@ -2,10 +2,7 @@ package com.cpd.hotel_system.auth_service_api.entity;
 
 import jakarta.annotation.security.DenyAll;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
 
@@ -15,6 +12,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @Getter
 @Setter
+@Builder
 public class SystemUser {
     @Id
     @Column(name="user_id", length=80, nullable=false)
