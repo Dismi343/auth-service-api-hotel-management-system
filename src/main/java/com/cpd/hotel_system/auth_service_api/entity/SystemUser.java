@@ -41,7 +41,7 @@ public class SystemUser {
     @Column(name="is_enabled")
     private boolean isEnabled;
     @Column(name="is_email_verified")
-    private String isEmailVerified;
+    private boolean isEmailVerified;
     @Column(name="created_at")
     private Instant createdAt;
     @Column(name="updated_at")
