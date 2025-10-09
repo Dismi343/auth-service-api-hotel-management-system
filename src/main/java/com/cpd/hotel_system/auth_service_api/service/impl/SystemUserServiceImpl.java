@@ -49,8 +49,8 @@ public class SystemUserServiceImpl implements SystemUserService {
             throw new BadRequestException("Email name is required");
         }
 
-        String userId;
-        String otp;
+        String userId ="";
+        String otp ="";
         Keycloak keycloak=null;
 
         UserRepresentation existingUser=null;
@@ -79,7 +79,7 @@ public class SystemUserServiceImpl implements SystemUserService {
             }
         }
 
-        UserRepresentation userRepresentation =mapUserRepo(dto);
+        UserRepresentation userRepresentation =mapUserRepo(dto,false,false);
         Response response = keycloak.realm(realm).users().create(userRepresentation);
         if(response.getStatus()== Response.Status.CREATED.getStatusCode()){
             RoleRepresentation userRole = keycloak.realm(realm).roles().get("user").toRepresentation();
@@ -124,15 +124,99 @@ public class SystemUserServiceImpl implements SystemUserService {
         }
     }
 
-    private UserRepresentation mapUserRepo(SystemUserRequestDto dto){
+    //===============================================================================================
+    //===============================================================================================
+
+    @Override
+    public void initializeHosts(ArrayList<SystemUserRequestDto> users) throws IOException {
+            for(SystemUserRequestDto dto:users){
+                Optional<SystemUser> selectedUser= systemUserRepo.findByEmail(dto.getEmail());
+
+                if(selectedUser.isPresent()){
+                    continue;
+                }
+
+                String userId ="";
+                String otp ="";
+                Keycloak keycloak=null;
+
+                UserRepresentation existingUser=null;
+                keycloak = keycloakSecurityUtil.getKeycloakInstance();
+
+                existingUser=keycloak.realm(realm).users().search(dto.getEmail()).stream()
+                        .findFirst().orElse(null);
+
+                if(existingUser!=null){
+                    Optional<SystemUser> selectedUserFromAuthService = systemUserRepo.findByEmail(dto.getEmail());
+                    if(selectedUserFromAuthService.isEmpty()){
+                        keycloak.realm(realm).users().delete(existingUser.getEmail());
+                    }else{
+                        throw new DuplicateEntryException("User with email "+dto.getEmail()+" already exists");
+                    }
+                }else{
+                    Optional<SystemUser> selectedUserFromAuthService = systemUserRepo.findByEmail(dto.getEmail());
+
+                    if(selectedUserFromAuthService.isPresent()){
+                        Optional<Otp> selectedOtp =
+                                otpRepo.findBySystemUserId(selectedUserFromAuthService.get().getUserId());
+                        if(selectedOtp.isPresent()){
+                            otpRepo.deleteById(selectedOtp.get().getPropertyId());
+                        }
+                        systemUserRepo.deleteById(selectedUserFromAuthService.get().getUserId());
+                    }
+                }
+
+                UserRepresentation userRepresentation =mapUserRepo(dto,true,true);
+                Response response = keycloak.realm(realm).users().create(userRepresentation);
+                if(response.getStatus()== Response.Status.CREATED.getStatusCode()){
+                    RoleRepresentation userRole = keycloak.realm(realm).roles().get("host").toRepresentation();
+                    userId= response.getLocation().getPath().replaceAll(".*/([^/]+)$", "$1");
+                    keycloak.realm(realm).users().get(userId).roles().realmLevel().add(Arrays.asList(userRole));
+                    UserRepresentation createdUser= keycloak.realm(realm).users().get(userId).toRepresentation();
+
+                    SystemUser sUser= SystemUser.builder()
+                            .userId(userId)
+                            .keycloakId(createdUser.getId())
+                            .firstName(dto.getFirstName())
+                            .lastName(dto.getLastName())
+                            .email(dto.getEmail())
+                            .contact(dto.getContact())
+                            .isActive(true)
+                            .isAccountNonExpired(true)
+                            .isAccountNonLocked(true)
+                            .isCredentialsNonExpired(true)
+                            .isEnabled(true)
+                            .isEmailVerified(true)
+                            .createdAt(new Date().toInstant())
+                            .updatedAt(new Date().toInstant())
+                            .build();
+
+                    SystemUser savedUser = systemUserRepo.save(sUser);
+
+
+                    //Send Email
+
+                    emailService.sendHostPassword(dto.getEmail(),"access system by above password",dto.getPassword(),dto.getFirstName());
+
+                }
+
+            }
+    }
+
+
+    //===============================================================================================
+    //===============================================================================================
+
+
+    private UserRepresentation mapUserRepo(SystemUserRequestDto dto,boolean isEmailVerified,boolean isEnabled){
         UserRepresentation user =new UserRepresentation();
 
         user.setEmail(dto.getEmail());
         user.setFirstName(dto.getFirstName());
         user.setLastName(dto.getLastName());
         user.setUsername(dto.getEmail());
-        user.setEnabled(false);
-        user.setEmailVerified(false);
+        user.setEnabled(isEnabled);
+        user.setEmailVerified(isEmailVerified);
 
         List<CredentialRepresentation> crerdList=new ArrayList<>();
         CredentialRepresentation cred=new CredentialRepresentation();
