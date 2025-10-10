@@ -3,26 +3,36 @@ package com.cpd.hotel_system.auth_service_api.service.impl;
 import com.amazonaws.services.panorama.model.PackageImportJobStatus;
 import com.cpd.hotel_system.auth_service_api.config.KeycloakSecurityUtil;
 import com.cpd.hotel_system.auth_service_api.dto.request.PasswordRequestDto;
+import com.cpd.hotel_system.auth_service_api.dto.request.RequestLoginDto;
 import com.cpd.hotel_system.auth_service_api.dto.request.SystemUserRequestDto;
 import com.cpd.hotel_system.auth_service_api.entity.Otp;
 import com.cpd.hotel_system.auth_service_api.entity.SystemUser;
 import com.cpd.hotel_system.auth_service_api.exceptions.BadRequestException;
 import com.cpd.hotel_system.auth_service_api.exceptions.DuplicateEntryException;
 import com.cpd.hotel_system.auth_service_api.exceptions.EntryNotFoundException;
+import com.cpd.hotel_system.auth_service_api.exceptions.UnAuthorizedException;
 import com.cpd.hotel_system.auth_service_api.repo.OtpRepo;
 import com.cpd.hotel_system.auth_service_api.repo.SystemUserRepo;
 import com.cpd.hotel_system.auth_service_api.service.EmailService;
 import com.cpd.hotel_system.auth_service_api.service.SystemUserService;
 import com.cpd.hotel_system.auth_service_api.util.OtpGenerator;
+
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
+import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -400,6 +410,38 @@ import java.util.*;
             otpRepo.save(otpObj);
         }
         return false;
+    }
+
+
+    //===============================================================================================
+    //===============================================================================================
+
+
+
+    @Override
+    public Object userLogin(RequestLoginDto dto) {
+        Optional<SystemUser> selectedUser = systemUserRepo.findByEmail(dto.getEmail());
+        if (selectedUser.isEmpty()) {
+            throw new EntryNotFoundException("can't find associated user");
+        }
+        SystemUser systemUser=selectedUser.get();
+        if(!systemUser.isEmailVerified()){
+            reSend(dto.getEmail(),"SIGNUP");
+            throw new UnAuthorizedException("please verify your email");
+        }
+        MultiValueMap<String,String> requestBody =new LinkedMultiValueMap<>();
+        requestBody.add("client_id","");
+        requestBody.add("grant_type", OAuth2Constants.PASSWORD);
+        requestBody.add("username",dto.getEmail());
+        requestBody.add("client_secret","");
+        requestBody.add("password",dto.getPassword());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+        RestTemplate restTemplate = new RestTemplate();
+        ResponseEntity<Object> response=restTemplate.postForEntity("keycloak api url",requestBody,Object.class);
+
+        return response.getBody();
     }
 
 
