@@ -225,7 +225,6 @@ public class SystemUserServiceImpl implements SystemUserService {
 
             Otp selectedOtp= systemUser.getOtp();
 
-            if(selectedOtp.getAttempts()>=5){
                 String code=otpGenerator.generateOtp(5);
                 emailService.sendUserSignupVerificationCode(systemUser.getEmail(),"Verify your email",code,systemUser.getFirstName());
 
@@ -235,7 +234,7 @@ public class SystemUserServiceImpl implements SystemUserService {
                 selectedOtp.setUpdatedAt(new Date().toInstant());
                 otpRepo.save(selectedOtp);
 
-            }
+
 
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -247,25 +246,25 @@ public class SystemUserServiceImpl implements SystemUserService {
 
     @Override
     public void forgetPasswordSendVerificationCode(String email) {
-        try{
-            Optional<SystemUser> selectedUser=systemUserRepo.findByEmail(email);
-            if(selectedUser.isEmpty()){
+        try {
+            Optional<SystemUser> selectedUser = systemUserRepo.findByEmail(email);
+            if (selectedUser.isEmpty()) {
                 throw new EntryNotFoundException("Unable to find any user associated with the provided email");
             }
             SystemUser systemUser = selectedUser.get();
 
-            Keycloak keycloak=null;
+            Keycloak keycloak = null;
             keycloak = keycloakSecurityUtil.getKeycloakInstance();
-            UserRepresentation existingUser=keycloak.realm(realm).users().search(email).stream().findFirst().orElse(null);
+            UserRepresentation existingUser = keycloak.realm(realm).users().search(email).stream().findFirst().orElse(null);
 
-            if(existingUser!=null){
+            if (existingUser != null) {
                 throw new EntryNotFoundException("Unable to find any user associated with the provided email");
             }
 
-            Otp selectedOtp= systemUser.getOtp();
-            if(selectedOtp.getAttempts()>=5){
-                String code=otpGenerator.generateOtp(5);
-                emailService.sendUserSignupVerificationCode(systemUser.getEmail(),"Verify your email to reset Password",code,systemUser.getFirstName());
+            Otp selectedOtp = systemUser.getOtp();
+            if (selectedOtp.getAttempts() >= 5) {
+                String code = otpGenerator.generateOtp(5);
+                emailService.sendUserSignupVerificationCode(systemUser.getEmail(), "Verify your email to reset Password", code, systemUser.getFirstName());
 
                 selectedOtp.setAttempts(0);
                 selectedOtp.setCode(code);
@@ -274,14 +273,53 @@ public class SystemUserServiceImpl implements SystemUserService {
                 otpRepo.save(selectedOtp);
 
 
-
-        }
-    } catch (IOException e) {
+            }
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    //===============================================================================================
+    //===============================================================================================
 
 
-        //===============================================================================================
+    @Override
+    public boolean verifyReset(String otp, String email) {
+        try{
+            Optional<SystemUser> selectedUser = systemUserRepo.findByEmail(email);
+            if (selectedUser.isEmpty()) {
+                throw new EntryNotFoundException("Unable to find any user associated with the provided email");
+            }
+
+            SystemUser systemUserOb = selectedUser.get();
+            Otp otpObj=systemUserOb.getOtp();
+
+            if(otpObj.getCode().equals(otp)){
+                //otpRepo.deleteById(otpObj.getPropertyId());
+                otpObj.setAttempts(otpObj.getAttempts() + 1);
+                otpObj.setUpdatedAt(new Date().toInstant());
+                otpRepo.save(otpObj);
+                otpObj.setVerified(true);
+                return true;
+            }else{
+                if(otpObj.getAttempts()>=5){
+                    reSend(email,"PASSWORD");
+                    throw new BadRequestException("you have verification code");
+                }
+                otpObj.setAttempts(otpObj.getAttempts() + 1);
+                otpObj.setUpdatedAt(new Date().toInstant());
+                otpRepo.save(otpObj);
+                return false;
+            }
+
+        }catch(Exception e){
+            throw new RuntimeException(e);
+
+        }
+    }
+
+
+    //===============================================================================================
     //===============================================================================================
 
 
