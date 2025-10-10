@@ -6,6 +6,7 @@ import com.cpd.hotel_system.auth_service_api.entity.Otp;
 import com.cpd.hotel_system.auth_service_api.entity.SystemUser;
 import com.cpd.hotel_system.auth_service_api.exceptions.BadRequestException;
 import com.cpd.hotel_system.auth_service_api.exceptions.DuplicateEntryException;
+import com.cpd.hotel_system.auth_service_api.exceptions.EntryNotFoundException;
 import com.cpd.hotel_system.auth_service_api.repo.OtpRepo;
 import com.cpd.hotel_system.auth_service_api.repo.SystemUserRepo;
 import com.cpd.hotel_system.auth_service_api.service.EmailService;
@@ -128,7 +129,7 @@ public class SystemUserServiceImpl implements SystemUserService {
     //===============================================================================================
 
     @Override
-    public void initializeHosts(ArrayList<SystemUserRequestDto> users) throws IOException {
+    public void initializeHosts(List<SystemUserRequestDto> users) throws IOException {
             for(SystemUserRequestDto dto:users){
                 Optional<SystemUser> selectedUser= systemUserRepo.findByEmail(dto.getEmail());
 
@@ -201,6 +202,40 @@ public class SystemUserServiceImpl implements SystemUserService {
                 }
 
             }
+    }
+
+    @Override
+    public void reSend(String email,String type) {
+        try{
+            Optional<SystemUser> selectedUser=systemUserRepo.findByEmail(email);
+            if(selectedUser.isEmpty()){
+                throw new EntryNotFoundException("Unable to find any user associated with the provided email");
+            }
+            SystemUser systemUser = selectedUser.get();
+            if(type.equalsIgnoreCase("SIGNUP")){
+
+                if(systemUser.isEmailVerified()){
+                    throw new DuplicateEntryException("This email is already verified");
+                }
+            }
+
+            Otp selectedOtp= systemUser.getOtp();
+
+            if(selectedOtp.getAttempts()>=5){
+                String code=otpGenerator.generateOtp(5);
+                emailService.sendUserSignupVerificationCode(systemUser.getEmail(),"Verify your email",code,systemUser.getFirstName());
+
+                selectedOtp.setAttempts(0);
+                selectedOtp.setCode(code);
+                selectedOtp.setVerified(false);
+                selectedOtp.setUpdatedAt(new Date().toInstant());
+                otpRepo.save(selectedOtp);
+
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 
