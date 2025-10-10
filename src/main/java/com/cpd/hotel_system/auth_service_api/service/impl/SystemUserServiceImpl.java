@@ -204,6 +204,10 @@ public class SystemUserServiceImpl implements SystemUserService {
             }
     }
 
+    //===============================================================================================
+    //===============================================================================================
+
+
     @Override
     public void reSend(String email,String type) {
         try{
@@ -238,8 +242,46 @@ public class SystemUserServiceImpl implements SystemUserService {
         }
     }
 
-
     //===============================================================================================
+    //===============================================================================================
+
+    @Override
+    public void forgetPasswordSendVerificationCode(String email) {
+        try{
+            Optional<SystemUser> selectedUser=systemUserRepo.findByEmail(email);
+            if(selectedUser.isEmpty()){
+                throw new EntryNotFoundException("Unable to find any user associated with the provided email");
+            }
+            SystemUser systemUser = selectedUser.get();
+
+            Keycloak keycloak=null;
+            keycloak = keycloakSecurityUtil.getKeycloakInstance();
+            UserRepresentation existingUser=keycloak.realm(realm).users().search(email).stream().findFirst().orElse(null);
+
+            if(existingUser!=null){
+                throw new EntryNotFoundException("Unable to find any user associated with the provided email");
+            }
+
+            Otp selectedOtp= systemUser.getOtp();
+            if(selectedOtp.getAttempts()>=5){
+                String code=otpGenerator.generateOtp(5);
+                emailService.sendUserSignupVerificationCode(systemUser.getEmail(),"Verify your email to reset Password",code,systemUser.getFirstName());
+
+                selectedOtp.setAttempts(0);
+                selectedOtp.setCode(code);
+                selectedOtp.setVerified(false);
+                selectedOtp.setUpdatedAt(new Date().toInstant());
+                otpRepo.save(selectedOtp);
+
+
+
+        }
+    } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+
+        //===============================================================================================
     //===============================================================================================
 
 
