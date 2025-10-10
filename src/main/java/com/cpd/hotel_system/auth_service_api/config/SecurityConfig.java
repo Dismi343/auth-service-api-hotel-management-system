@@ -25,7 +25,7 @@ public class SecurityConfig {
             http.csrf(AbstractHttpConfigurer::disable);
             http.authorizeHttpRequests(authorizeRequest->{
                 authorizeRequest
-                        .requestMatchers(HttpMethod.POST,"user-service/api/v1/visitors/**").permitAll()
+                        .requestMatchers(HttpMethod.POST,"user-service/api/v1/users/visitors/**").permitAll()
                         .anyRequest().authenticated();
             });
             http.oauth2ResourceServer(t->{
