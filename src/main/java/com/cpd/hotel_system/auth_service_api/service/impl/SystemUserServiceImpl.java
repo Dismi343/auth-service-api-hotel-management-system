@@ -1,6 +1,8 @@
 package com.cpd.hotel_system.auth_service_api.service.impl;
 
+import com.amazonaws.services.panorama.model.PackageImportJobStatus;
 import com.cpd.hotel_system.auth_service_api.config.KeycloakSecurityUtil;
+import com.cpd.hotel_system.auth_service_api.dto.request.PasswordRequestDto;
 import com.cpd.hotel_system.auth_service_api.dto.request.SystemUserRequestDto;
 import com.cpd.hotel_system.auth_service_api.entity.Otp;
 import com.cpd.hotel_system.auth_service_api.entity.SystemUser;
@@ -15,6 +17,7 @@ import com.cpd.hotel_system.auth_service_api.util.OtpGenerator;
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
 import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
@@ -316,6 +319,34 @@ public class SystemUserServiceImpl implements SystemUserService {
             throw new RuntimeException(e);
 
         }
+    }
+
+    @Override
+    public boolean passwordRest(PasswordRequestDto dto) {
+
+            Optional<SystemUser> selectedUser = systemUserRepo.findByEmail(dto.getEmail());
+            if (selectedUser.isPresent()) {
+                SystemUser systemUser = selectedUser.get();
+                Otp otpObj = systemUser.getOtp();
+                Keycloak keycloak = keycloakSecurityUtil.getKeycloakInstance();
+                List<UserRepresentation> keycloakUsers = keycloak.realm(realm).users().search(systemUser.getEmail());
+
+                if (!keycloakUsers.isEmpty() && otpObj.getCode().equals(dto.getCode())) {
+                    UserRepresentation keyclocakUser = keycloakUsers.get(0);
+                    UserResource userResource = keycloak.realm(realm).users().get(keyclocakUser.getId());
+                    CredentialRepresentation newPassword = new CredentialRepresentation();
+                    newPassword.setType(CredentialRepresentation.PASSWORD);
+                    newPassword.setValue(dto.getPassword());
+                    newPassword.setTemporary(false);
+                    userResource.resetPassword(newPassword);
+
+                    systemUser.setUpdatedAt(new Date().toInstant());
+                    systemUserRepo.save(systemUser);
+                    return true;
+                }
+                throw new BadRequestException("try again");
+            }
+            throw new EntryNotFoundException("Unable to find ");
     }
 
 
