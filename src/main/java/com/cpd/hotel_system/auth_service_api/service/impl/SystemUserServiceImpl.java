@@ -30,7 +30,7 @@ import java.util.*;
 
 @Service
 @RequiredArgsConstructor
-public class SystemUserServiceImpl implements SystemUserService {
+ public class SystemUserServiceImpl implements SystemUserService {
 
     @Value("${keycloak.config.realm}")
     private String realm;
@@ -347,6 +347,59 @@ public class SystemUserServiceImpl implements SystemUserService {
                 throw new BadRequestException("try again");
             }
             throw new EntryNotFoundException("Unable to find ");
+    }
+
+    //===============================================================================================
+    //===============================================================================================
+
+    @Override
+    public boolean verifyEmail(String otp, String email) {
+        Optional<SystemUser> selectedUser = systemUserRepo.findByEmail(email);
+        if (selectedUser.isEmpty()) {
+            throw new EntryNotFoundException("can't find associated user");
+        }
+        SystemUser systemUser=selectedUser.get();
+        Otp otpObj=systemUser.getOtp();
+
+        if(otpObj.isVerified()){
+            throw new BadRequestException("this otp has been used");
+        }
+        if(otpObj.getAttempts()>=5){
+            reSend(email,"SIGNUP");
+            return false;
+        }
+        if(otpObj.getCode().equals(otp)){
+            UserRepresentation keycloakUser=keycloakSecurityUtil.getKeycloakInstance().realm(realm)
+                    .users().search(email)
+                    .stream().findFirst()
+                    .orElseThrow(()->new EntryNotFoundException("user not found"));
+
+            keycloakUser.setEmailVerified(true);
+            keycloakUser.setEnabled(true);
+
+            keycloakSecurityUtil.getKeycloakInstance().realm(realm)
+                    .users().get(keycloakUser.getId())
+                    .update(keycloakUser);
+
+            systemUser.setEmailVerified(true);
+            systemUser.setEnabled(true);
+            systemUser.setActive(true);
+
+            systemUserRepo.save(systemUser);
+
+            otpObj.setVerified(true);
+            otpObj.setAttempts(otpObj.getAttempts() + 1);
+            otpRepo.save(otpObj);
+            return true;
+        }else{
+            if(otpObj.getAttempts()>=5){
+                reSend(email,"SIGNUP");
+                return false;
+            }
+            otpObj.setAttempts(otpObj.getAttempts() + 1);
+            otpRepo.save(otpObj);
+        }
+        return false;
     }
 
 
